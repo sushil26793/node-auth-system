@@ -122,7 +122,6 @@ src/
 
 npm test
 
-text
 
 ## 📄 License
 
