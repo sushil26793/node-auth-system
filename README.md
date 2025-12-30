@@ -23,11 +23,11 @@ The system follows the **API Gateway pattern**, serving as the single entry poin
 
 ```mermaid
 graph TD
-    Client[Client (Web/Mobile)] -->|HTTPS| Gateway[API Gateway :4000]
+    Client["Client (Web/Mobile)"] -->|HTTPS| Gateway["API Gateway :4000"]
     
     subgraph "Microservices Cluster"
-        Gateway -->|Proxy /auth| AuthService[Auth Service :4001]
-        Gateway -->|Proxy /users| UserService[User Service :4002]
+        Gateway -->|Proxy /auth| AuthService["Auth Service :4001"]
+        Gateway -->|Proxy /users| UserService["User Service :4002"]
         
         AuthService -->|Events| Kafka{Apache Kafka}
         UserService -->|Events| Kafka
