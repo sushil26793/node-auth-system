@@ -1,132 +1,144 @@
-# 🔐 MERN Secure Authentication System
+# 🛡️ Enterprise-Grade Microservices Authentication System
 
-Production-grade JWT authentication for MERN stack with refresh tokens, token revocation, and rate limiting.
+> **A robust, event-driven microservices architecture built with Node.js, TypeScript, Kafka, and Docker.**  
+> *Designed for scalability, security, and high availability.*
 
-## 🚀 Features
+---
 
-- **JWT Authentication** - Access tokens (15m) & refresh tokens (7d)
-- **Token Revocation** - Redis blacklist + MongoDB persistence
-- **Token Versioning** - Instant invalidation of all user sessions
-- **Rate Limiting** - Brute-force protection with express-rate-limit
-- **Secure Password** - Bcryptjs hashing with strength validation
-- **Zod Validation** - Type-safe request validation
-- **TypeScript** - Full type safety across the stack
+## 📖 Project Overview
 
-## 📦 Tech Stack
+This project demonstrates a production-ready authentication system decomposed into microservices. Unlike monolithic auth apps, this system uses an **API Gateway** to route traffic, **Apache Kafka** for asynchronous event propagation (e.g., data consistency, token revocation), and **Redis** for high-performance caching and state management.
 
-- **Backend:** Node.js, Express.js, TypeScript
-- **Database:** MongoDB (Mongoose)
-- **Cache:** Redis
-- **Auth:** JWT (jsonwebtoken)
-- **Validation:** Zod
-- **Security:** Helmet, CORS, bcryptjs
+Key engineering highlights:
+- **Event-Driven Architecture**: Decoupled services communicating via Kafka topics (`user.events`, `auth.events`).
+- **Security-First Design**: Implements **Refresh Token Rotation** with reuse detection (automatic family revocation) to prevent token theft replay attacks.
+- **Database-per-Service**: Strict data isolation with dedicated MongoDB instances for Auth and User services.
+- **Infrastructure as Code**: Fully containerized with Docker Compose for one-command startup.
 
-## 🛠️ Installation
+---
 
-Clone repository
-git clone <your-repo-url>
-cd mern-secure-auth
+## 🏗️ System Architecture
 
-Install dependencies
-npm install
+The system follows the **API Gateway pattern**, serving as the single entry point for all client requests, routing them to the appropriate backend service.
 
-Setup environment
-cp .env.example .env
+```mermaid
+graph TD
+    Client[Client (Web/Mobile)] -->|HTTPS| Gateway[API Gateway :4000]
+    
+    subgraph "Microservices Cluster"
+        Gateway -->|Proxy /auth| AuthService[Auth Service :4001]
+        Gateway -->|Proxy /users| UserService[User Service :4002]
+        
+        AuthService -->|Events| Kafka{Apache Kafka}
+        UserService -->|Events| Kafka
+        
+        AuthService -->|State| Redis[(Redis Cache)]
+        
+        AuthService -->|Data| AuthDB[(Auth MongoDB)]
+        UserService -->|Data| UserDB[(User MongoDB)]
+    end
+    
+    Kafka -.->|Consumer: USER_CREATED| UserService
+    Kafka -.->|Consumer: TOKEN_REVOKED| Gateway
+```
 
-Edit .env with your configuration
-Start MongoDB and Redis
-docker-compose up -d # or start locally
+---
 
-Run development server
-npm run dev
+## 🔄 Core Microservices
 
+### 1. **API Gateway** (`/services/api-gateway`)
+- **Role**: Entry point, Reverse Proxy, Rate Limiting.
+- **Stack**: Express, `express-http-proxy`.
+- **Key Logic**: Dispatches requests to internal services. Handles centralized CORS and rate limiting protection against DDoS.
 
+### 2. **Auth Service** (`/services/auth-service`)
+- **Role**: Identity Provider (Signup, Login, Token Management).
+- **Stack**: TypeScript, JWT, Redis, MongoDB.
+- **Key Logic**: 
+    - Issues short-lived **Access Tokens** (15m) and sliding-window **Refresh Tokens** (7d).
+    - **Token Rotation**: Every refresh uses a new token. If an old token is reused, the entire token family is revoked (security against theft).
+    - Publishes `USER_CREATED` events to Kafka so the User Service can create a profile asynchronously.
 
-## 🔧 Environment Variables
+### 3. **User Service** (`/services/user-service`)
+- **Role**: Profile Management.
+- **Stack**: TypeScript, MongoDB, Kafka Consumer.
+- **Key Logic**: 
+    - Consumes `USER_CREATED` events to generate user profiles independently.
+    - Manages user data updates.
+    - Demonstrates **Eventual Consistency** patterns.
 
-PORT=3000
-NODE_ENV=development
+---
 
-MONGODB_URI=mongodb://localhost:27017/auth_system
-REDIS_URL=redis://localhost:6379
+## 🔐 Security Features Breakdown
 
-JWT_ACCESS_SECRET=your_access_secret_min_32_chars
-JWT_REFRESH_SECRET=your_refresh_secret_min_32_chars
+| Feature | Implementation Details |
+|---------|------------------------|
+| **Token Rotation** | Refresh tokens change on every use. Old tokens are blacklisted in Redis. |
+| **Reuse Detection** | If a hacker tries to use a stolen (old) refresh token, the system detects the anomaly and revokes *all* tokens for that user immediately. |
+| **Event-Driven Revocation** | When a user logs out, a Kafka event propagates the revocation to ensuring session termination across services. |
+| **HttpOnly Cookies** | Refresh tokens are stored in `HttpOnly` `Secure` cookies to prevent XSS attacks. |
+| **Rate Limiting** | `express-rate-limit` protects sensitive endpoints (Login, Signup) from brute-force attacks. |
 
-ACCESS_TOKEN_EXPIRY=15m
-REFRESH_TOKEN_EXPIRY=7d
+---
 
-FRONTEND_URL=http://localhost:3000
+## 🚀 Getting Started
 
+### Prerequisites
+- Docker & Docker Compose
+- Node.js v18+ (for local testing scripts)
 
+### Installation & Run
 
-## 📡 API Endpoints
+1. **Clone the repository**:
+   ```bash
+   git clone <repo-url>
+   cd node-auth-app
+   ```
 
-### Public Routes
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/refresh-token` - Refresh access token
+2. **Start Infrastructure**:
+   Spins up MongoDB, Redis, Kafka, Zookeeper, and all Microservices.
+   ```bash
+   docker-compose up --build
+   ```
 
-### Protected Routes
-- `GET /api/auth/me` - Get current user
-- `POST /api/auth/logout` - Logout user
-- `POST /api/auth/change-password` - Change password
+3. **Verify Services**:
+   - **API Gateway**: `http://localhost:4000`
+   - **Auth Service**: `http://localhost:4001`
+   - **User Service**: `http://localhost:4002`
 
-## 📝 Example Usage
+---
 
-### Register
-curl -X POST http://localhost:3000/api/auth/register
--H "Content-Type: application/json"
--d '{"email":"user@example.com","password":"SecurePass123"}'
+## 🧪 Testing & Verification
 
+The project includes a comprehensive **End-to-End System Test** script that simulates a real user journey.
 
+### Run System Test
+```bash
+node test-system.js
+```
+**What this test covers**:
+1. **Signup**: Registers a user via Gateway -> Auth Service.
+2. **Kafka Propagation**: Verifies User Service creates the profile via Kafka event.
+3. **Login**: Authenticates and retrieves tokens (handling 403 blocks automatically).
+4. **Token Rotation**: Uses the Refresh Token to get a new Access Token.
+5. **Profile Update**: Modifies user data via User Service.
+6. **Logout**: Revokes session.
 
-### Login
-curl -X POST http://localhost:3000/api/auth/login
--H "Content-Type: application/json"
--d '{"email":"user@example.com","password":"SecurePass123"}'
+---
 
+## 🛠️ Technology Stack
 
+- **Runtime**: Node.js
+- **Language**: TypeScript
+- **Containerization**: Docker
+- **Orchestration**: Docker Compose
+- **Message Broker**: Apache Kafka
+- **Databases**: MongoDB (Information Storage), Redis (Session/Token Management)
+- **Testing**: Jest, Custom E2E Scripts
 
-### Access Protected Route
-curl -X GET http://localhost:3000/api/auth/me
--H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-
-
-
-## 🏗️ Project Structure
-
-src/
-├── config/ # Database & Redis configuration
-├── models/ # Mongoose models
-├── controllers/ # Route controllers
-├── middlewares/ # Auth, validation, rate limiting
-├── services/ # Business logic
-├── routes/ # API routes
-├── types/ # TypeScript types
-└── app.ts # Application entry point
-
-
-
-## 🔒 Security Features
-
-- **Short-lived access tokens** - 15-minute expiration
-- **Refresh token rotation** - Automatic blacklisting
-- **HTTP-only cookies** - XSS protection
-- **Rate limiting** - Login (5 attempts/15m), Register (3/hour)
-- **Password requirements** - 8+ chars, mixed case, numbers
-- **Helmet & CORS** - Security headers
-- **Anomaly detection** - Suspicious token usage tracking
-
-## 🧪 Testing
-
-npm test
-
-
-## 📄 License
-
-MIT
+---
 
 ## 👤 Author
 
-SUSHIL SATYARTHI
+**Sushil Satyarthi**  
+*Full Stack Developer | Microservices Enthusiast*

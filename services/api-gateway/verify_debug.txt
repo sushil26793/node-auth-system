@@ -1,0 +1,8 @@
+0. Checking Connectivity...
+Auth Service Health: 200
+1. Signing up: test_1765877582620@example.com
+Signup Status: 500
+Signup Res: {"error":"Internal server error"}
+VERIFICATION FAILED: Error: Signup failed: {"error":"Internal server error"}
+    at verify (C:\Users\Sushi\OneDrive\Desktop\node-auth-app\services\api-gateway\verify.js:26:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
